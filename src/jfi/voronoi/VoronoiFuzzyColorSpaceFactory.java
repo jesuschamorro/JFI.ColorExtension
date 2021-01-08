@@ -1,8 +1,3 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 package jfi.voronoi;
 
 import java.util.ArrayList;
@@ -42,15 +37,8 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ArrayList<Point3D> centroids, ArrayList<String> labels, double lambda) {
-        FuzzyColorSpace fcs = null;
-        try {
-            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
-            fcs = createVoronoiFuzzyColorSpace(voronoiTessellation, labels, lambda);
-        } catch (Exception ex) {
-            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
-        return fcs;
+        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
+        return createVoronoiFuzzyColorSpace(voronoiTessellation, labels, lambda);
     }
 
     /**
@@ -64,15 +52,8 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ISCCColorMap colorMap, double lambda) {
-        FuzzyColorSpace fcs = null;
-        try {
-            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(new ArrayList<>(colorMap.values()));
-            fcs = createVoronoiFuzzyColorSpace(voronoiTessellation, new ArrayList<String>(colorMap.keySet()), lambda);
-        } catch (Exception ex) {
-            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        
-        return fcs;
+        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(new ArrayList<>(colorMap.values()));
+        return createVoronoiFuzzyColorSpace(voronoiTessellation, new ArrayList<String>(colorMap.keySet()), lambda);
     }
 
     /**
@@ -281,25 +262,21 @@ public class VoronoiFuzzyColorSpaceFactory {
      */
     private static FuzzyColorSpace createSelectedFuzzyColors(List<Point3D> centroids, List<Point3D> selectedPrototypes, double lambda) {
         FuzzyColorSpace<Point3D> fcs = new FuzzyColorSpace();
-        try {
-            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
-            
-            
-            for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
-                Point3D centroid = voronoiTessellation.getPoints().get(i);
-                if (selectedPrototypes.contains(centroid)) {
-                    Polyhedron volume = voronoiTessellation.getPolyhedrons().get(i);
-                    PolyhedralFuzzyColor vfc = getDefaultScaledPolyhedronFC("Color " + i, volume, centroid, lambda);
-                    
-                    fcs.add(vfc);
-                }
-                
+        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
+
+        for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
+            Point3D centroid = voronoiTessellation.getPoints().get(i);
+            if (selectedPrototypes.contains(centroid)) {
+                Polyhedron volume = voronoiTessellation.getPolyhedrons().get(i);
+                PolyhedralFuzzyColor vfc = getDefaultScaledPolyhedronFC("Color " + i, volume, centroid, lambda);
+
+                fcs.add(vfc);
             }
-            // check points in kernel and support and fix them
-            checkingPointsKernelSupport(fcs);
-        } catch (Exception ex) {
-            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
+
         }
+        // check points in kernel and support and fix them
+        checkingPointsKernelSupport(fcs);
+
         return fcs;
     }
 
@@ -348,7 +325,7 @@ public class VoronoiFuzzyColorSpaceFactory {
                                                 }
                                                 System.out.println(" -> [" + c1.getLabel() + "] support face moved");
                                             } else {
-                                                System.err.println("NO fixed support point. Cannot move support face ");
+                                                System.out.println("NO fixed support point. Cannot move support face ");
                                             }
                                         }
                                     }
@@ -380,11 +357,11 @@ public class VoronoiFuzzyColorSpaceFactory {
                                             double testDist = nearestHp.getPlane().distanceToPoint(c1.getPrototype());
                                             double newDist = newPlane.distanceToPoint(c1.getPrototype());
                                             if (testDist < newDist) {
-                                                System.err.println("Error moving support face for [" + c1.getLabel() + "]. New support plane dist is not smaller");
+                                                System.out.println("Error moving support face for [" + c1.getLabel() + "]. New support plane dist is not smaller");
                                             }
                                             // obtenemos los vértices antes de actualizar la cara mas cercana
                                             List<Point3D> vertexNearestHp = nearestHp.getVertexSet();
-                                            
+
                                             nearestHp.getPlane().modifyData(nearestHp.getPlane().getOrthogonalVector(), vkernel);
 
                                             //actualizamos los vertex

@@ -7,8 +7,10 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -80,41 +82,47 @@ public class VoronoiTessellation3D {
      *
      * @param points the point set.
      */
-    public VoronoiTessellation3D(List<Point3D> points) throws Exception {
-
-        if (points.size() < QHULL_POINTS) {
-            throw new Exception("Points size given is " + points.size() + ". Minimum required size is "+QHULL_POINTS);
+    public VoronoiTessellation3D(List<Point3D> points) {
+        try {
+            if (points.size() < QHULL_POINTS) {
+                throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is "+QHULL_POINTS);
+            }
+            
+            String voronoiScriptExtension = ".sh";
+            String voronoiDependencyResource = "qvoronoi";
+            if (isWindows()) {
+                voronoiDependencyResource = "qvoronoi.exe";
+                voronoiScriptExtension =  ".bat";
+            }
+            
+            // obtain resource dependency absolute path
+            this.voronoiExecutable = Paths.get(Thread.currentThread().getContextClassLoader().getResource(voronoiDependencyResource).toURI()).toFile().getAbsolutePath();
+            
+            // generate aux files as temp files
+            this.outVoronoi = Files.createTempFile("outVoronoi"+ UUID.randomUUID(), fcvExtension).toAbsolutePath().toString();
+            this.inVoronoi = Files.createTempFile("inVoronoi"+ UUID.randomUUID(), fcpExtension).toAbsolutePath().toString();
+            this.voronoiScript = Files.createTempFile("voronoiScript"+UUID.randomUUID(), voronoiScriptExtension).toAbsolutePath().toString();
+            
+            this.polyhedrons = new ArrayList<Polyhedron>();
+            this.points = points;
+            
+            // we need create a .fcp file with the points
+            // needed for qhull library
+            this.createInputPointsSetFile();
+            
+            // execute voronoi algorithm
+            this.executeQHull();
+            
+            // read result
+            this.readQhullResultsFile();
+            
+            // perform check for non-terminated voronoi cells
+            this.checkNonTerminatedCells();
+        } catch (URISyntaxException ex) {
+            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
         }
-        String voronoiScriptExtension = ".sh";
-        String voronoiDependencyResource = "qvoronoi";
-        if (isWindows()) {
-            voronoiDependencyResource = "qvoronoi.exe";
-            voronoiScriptExtension =  ".bat";
-        }
-        
-        // obtain resource dependency absolute path 
-        this.voronoiExecutable = Paths.get(Thread.currentThread().getContextClassLoader().getResource(voronoiDependencyResource).toURI()).toFile().getAbsolutePath();
-                 
-        // generate aux files as temp files
-        this.outVoronoi = Files.createTempFile("outVoronoi"+ UUID.randomUUID(), fcvExtension).toAbsolutePath().toString();
-        this.inVoronoi = Files.createTempFile("inVoronoi"+ UUID.randomUUID(), fcpExtension).toAbsolutePath().toString();
-        this.voronoiScript = Files.createTempFile("voronoiScript"+UUID.randomUUID(), voronoiScriptExtension).toAbsolutePath().toString();
-
-        this.polyhedrons = new ArrayList<Polyhedron>();
-        this.points = points;
-
-        // we need create a .fcp file with the points
-        // needed for qhull library
-        this.createInputPointsSetFile();
-
-        // execute voronoi algorithm
-        this.executeQHull();
-
-        // read result
-        this.readQhullResultsFile();
-
-        // perform check for non-terminated voronoi cells
-        this.checkNonTerminatedCells();
     }
 
     /**
