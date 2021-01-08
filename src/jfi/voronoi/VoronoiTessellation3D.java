@@ -4,11 +4,11 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -46,7 +46,7 @@ public class VoronoiTessellation3D {
     private String voronoiScript;
 
     /*
-    * Aux path for the qhull executable.
+    * Absolute path for the qhull executable.
      */
     private String voronoiExecutable;
 
@@ -71,19 +71,34 @@ public class VoronoiTessellation3D {
     private final String fcpExtension = ".fcp";
 
     /**
+     * Minimum point number neccesary for qhull library.
+     */
+    static final int QHULL_POINTS = 5;
+
+    /**
      * Creates a new Voronoi tessellation on 3D space through a point set.
      *
      * @param points the point set.
      */
-    public VoronoiTessellation3D(List<Point3D> points) {
-        this.outVoronoi = "outVoronoi" + UUID.randomUUID() + fcvExtension;
-        this.inVoronoi = "inVoronoi" + UUID.randomUUID() + fcpExtension;
-        this.voronoiScript = UUID.randomUUID() + "voronoiScript.sh";
-        this.voronoiExecutable = "qvoronoi";
-        if (isWindows()) {
-            this.voronoiExecutable = "qvoronoi.exe";
-            this.voronoiScript = UUID.randomUUID() + "voronoiScript.bat";
+    public VoronoiTessellation3D(List<Point3D> points) throws Exception {
+
+        if (points.size() < QHULL_POINTS) {
+            throw new Exception("Points size given is " + points.size() + ". Minimum required size is "+QHULL_POINTS);
         }
+        String voronoiScriptExtension = ".sh";
+        String voronoiDependencyResource = "qvoronoi";
+        if (isWindows()) {
+            voronoiDependencyResource = "qvoronoi.exe";
+            voronoiScriptExtension =  ".bat";
+        }
+        
+        // obtain resource dependency absolute path 
+        this.voronoiExecutable = Paths.get(Thread.currentThread().getContextClassLoader().getResource(voronoiDependencyResource).toURI()).toFile().getAbsolutePath();
+                 
+        // generate aux files as temp files
+        this.outVoronoi = Files.createTempFile("outVoronoi"+ UUID.randomUUID(), fcvExtension).toAbsolutePath().toString();
+        this.inVoronoi = Files.createTempFile("inVoronoi"+ UUID.randomUUID(), fcpExtension).toAbsolutePath().toString();
+        this.voronoiScript = Files.createTempFile("voronoiScript"+UUID.randomUUID(), voronoiScriptExtension).toAbsolutePath().toString();
 
         this.polyhedrons = new ArrayList<Polyhedron>();
         this.points = points;
@@ -275,13 +290,10 @@ public class VoronoiTessellation3D {
             delete.delete();
             delete = new File(inVoronoi);
             delete.delete();
-            delete = new File(this.voronoiExecutable);
-            delete.delete();
             delete = new File(this.voronoiScript);
             delete.delete();
         } catch (IOException io) {
             System.err.println(io.getMessage());
-            io.printStackTrace();
             return false;
         } catch (Exception ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
@@ -341,15 +353,16 @@ public class VoronoiTessellation3D {
             }
         }
     }
-    
+
     /**
      * Calculate the middle point between p1 and p2.
+     *
      * @param p1 one point
      * @param p2 another point
      * @return the middle point between pi and p2
      */
     private Point3D middlePoint(Point3D p1, Point3D p2) {
-        return new Point3D((p1.x+p2.x)/2.0, (p1.y+p2.y)/2.0, (p1.z+p2.z)/2.0);
+        return new Point3D((p1.x + p2.x) / 2.0, (p1.y + p2.y) / 2.0, (p1.z + p2.z) / 2.0);
     }
 
     /**
@@ -391,7 +404,7 @@ public class VoronoiTessellation3D {
         try {
             BufferedWriter out = new BufferedWriter(new FileWriter(voronoiScript));
             out.write("#!/bin/bash \n");
-            out.write("./" + voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi);
+            out.write(voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi);
             out.close();
         } catch (Exception e) {
             e.printStackTrace();
@@ -447,19 +460,7 @@ public class VoronoiTessellation3D {
      * @return true if the script is executed without problems, false otherwise.
      */
     private boolean executeQHull() {
-        FileOutputStream fos = null;
         try {
-            InputStream is = Thread.currentThread().getContextClassLoader().getResourceAsStream(this.voronoiExecutable);
-
-            File exeFile = new File(this.voronoiExecutable);
-            fos = new FileOutputStream(exeFile);
-            byte bytes[] = new byte[1000];
-            int k = 0;
-            while ((k = is.read(bytes)) != -1) {
-                fos.write(bytes, 0, k);
-            }
-            fos.close();
-
             if (isWindows()) {
                 createWinBatFile();
             } else if (isLinux()) {
@@ -471,27 +472,18 @@ public class VoronoiTessellation3D {
             }
 
             if (isLinux() || isMac()) {
-                Process p = Runtime.getRuntime().exec("chmod +x " + this.voronoiExecutable);
-                p.waitFor();
-                p = Runtime.getRuntime().exec("chmod +x " + this.voronoiScript);
-                p.waitFor();
-                p = Runtime.getRuntime().exec("./" + this.voronoiScript);
-                p.waitFor();
-            } else {
-                Runtime.getRuntime().exec(this.voronoiScript).waitFor();
-            }
+                Runtime.getRuntime().exec("chmod +x " + this.voronoiExecutable).waitFor();
+
+                Runtime.getRuntime().exec("chmod +x " + this.voronoiScript).waitFor();
+            } 
+            
+            Runtime.getRuntime().exec(this.voronoiScript).waitFor();
         } catch (FileNotFoundException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
         } catch (InterruptedException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
-        } finally {
-            try {
-                fos.close();
-            } catch (IOException ex) {
-                Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
-            }
         }
 
         return true;

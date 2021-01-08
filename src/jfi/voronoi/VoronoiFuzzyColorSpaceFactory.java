@@ -42,8 +42,15 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ArrayList<Point3D> centroids, ArrayList<String> labels, double lambda) {
-        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
-        return createVoronoiFuzzyColorSpace(voronoiTessellation, labels, lambda);
+        FuzzyColorSpace fcs = null;
+        try {
+            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
+            fcs = createVoronoiFuzzyColorSpace(voronoiTessellation, labels, lambda);
+        } catch (Exception ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        return fcs;
     }
 
     /**
@@ -57,8 +64,15 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ISCCColorMap colorMap, double lambda) {
-        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(new ArrayList<>(colorMap.values()));
-        return createVoronoiFuzzyColorSpace(voronoiTessellation, new ArrayList<String>(colorMap.keySet()), lambda);
+        FuzzyColorSpace fcs = null;
+        try {
+            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(new ArrayList<>(colorMap.values()));
+            fcs = createVoronoiFuzzyColorSpace(voronoiTessellation, new ArrayList<String>(colorMap.keySet()), lambda);
+        } catch (Exception ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        
+        return fcs;
     }
 
     /**
@@ -266,22 +280,26 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return
      */
     private static FuzzyColorSpace createSelectedFuzzyColors(List<Point3D> centroids, List<Point3D> selectedPrototypes, double lambda) {
-        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
         FuzzyColorSpace<Point3D> fcs = new FuzzyColorSpace();
-
-        for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
-            Point3D centroid = voronoiTessellation.getPoints().get(i);
-            if (selectedPrototypes.contains(centroid)) {
-                Polyhedron volume = voronoiTessellation.getPolyhedrons().get(i);
-                PolyhedralFuzzyColor vfc = getDefaultScaledPolyhedronFC("Color " + i, volume, centroid, lambda);
-
-                fcs.add(vfc);
+        try {
+            VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
+            
+            
+            for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
+                Point3D centroid = voronoiTessellation.getPoints().get(i);
+                if (selectedPrototypes.contains(centroid)) {
+                    Polyhedron volume = voronoiTessellation.getPolyhedrons().get(i);
+                    PolyhedralFuzzyColor vfc = getDefaultScaledPolyhedronFC("Color " + i, volume, centroid, lambda);
+                    
+                    fcs.add(vfc);
+                }
+                
             }
-
+            // check points in kernel and support and fix them
+            checkingPointsKernelSupport(fcs);
+        } catch (Exception ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceFactory.class.getName()).log(Level.SEVERE, null, ex);
         }
-        // check points in kernel and support and fix them
-        checkingPointsKernelSupport(fcs);
-
         return fcs;
     }
 
