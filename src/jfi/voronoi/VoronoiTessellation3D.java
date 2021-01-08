@@ -54,6 +54,11 @@ public class VoronoiTessellation3D {
     * Aux path for output file where qhull write results.
      */
     private String outVoronoi;
+    
+    /*
+    * Terminal command to execute qhull.
+     */
+    private String [] command;
 
     /**
      * Temporal dir storing aux files for qhull execution.
@@ -100,8 +105,12 @@ public class VoronoiTessellation3D {
             });
 
             String voronoiDependencyResource = "qvoronoi";
+            String shell = System.getenv("SHELL");
+            String shellArgument = "-c";
             if (isWindows()) {
                 voronoiDependencyResource = "qvoronoi.exe";
+                shell = "cmd.exe";
+                shellArgument = "/c";
             }
 
             // obtain resource dependency absolute path
@@ -113,6 +122,8 @@ public class VoronoiTessellation3D {
             // generate aux files as temp files
             this.outVoronoi = temporalDir + "/outVoronoi" + UUID.randomUUID() + fcvExtension;
             this.inVoronoi = temporalDir + "/inVoronoi" + UUID.randomUUID() + fcpExtension;
+            
+            this.command = new String[]{shell, shellArgument, voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi};
 
             this.polyhedrons = new ArrayList<Polyhedron>();
             this.points = points;
@@ -411,8 +422,7 @@ public class VoronoiTessellation3D {
      */
     private boolean executeQHull() {
         try {
-            String[] command = new String[]{System.getenv("SHELL"), "-c", voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi};
-            Runtime.getRuntime().exec(command).waitFor();
+            Runtime.getRuntime().exec(this.command).waitFor();
         } catch (IOException | InterruptedException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
             return false;
