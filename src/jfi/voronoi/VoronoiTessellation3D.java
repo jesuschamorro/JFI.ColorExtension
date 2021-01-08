@@ -3,12 +3,10 @@ package jfi.voronoi;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
@@ -43,11 +41,6 @@ public class VoronoiTessellation3D {
     private List<Point3D> points;
 
     /*
-    * Aux path for the qhull script generated.
-     */
-    private String voronoiScript;
-
-    /*
     * Absolute path for the qhull executable.
      */
     private String voronoiExecutable;
@@ -61,6 +54,11 @@ public class VoronoiTessellation3D {
     * Aux path for output file where qhull write results.
      */
     private String outVoronoi;
+
+    /**
+     * Temporal dir storing aux files for qhull execution.
+     */
+    private final String temporalDir = "tmp" + UUID.randomUUID();
 
     /*
     * Input file extension needed by qhull.
@@ -85,42 +83,53 @@ public class VoronoiTessellation3D {
     public VoronoiTessellation3D(List<Point3D> points) {
         try {
             if (points.size() < QHULL_POINTS) {
-                throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is "+QHULL_POINTS);
+                throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is " + QHULL_POINTS);
             }
-            
-            String voronoiScriptExtension = ".sh";
+
+            // adding shutdown hook for remove temporal files
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                public void run() {
+                    File file = new File(temporalDir);
+                    for (File f : file.listFiles()) {
+                        f.delete();
+                    }
+                    if (file.isDirectory()) {
+                        file.delete();
+                    }
+                }
+            });
+
             String voronoiDependencyResource = "qvoronoi";
             if (isWindows()) {
                 voronoiDependencyResource = "qvoronoi.exe";
-                voronoiScriptExtension =  ".bat";
             }
-            
+
             // obtain resource dependency absolute path
             this.voronoiExecutable = Paths.get(Thread.currentThread().getContextClassLoader().getResource(voronoiDependencyResource).toURI()).toFile().getAbsolutePath();
-            
+
+            // create temporalDir
+            new File(temporalDir).mkdirs();
+
             // generate aux files as temp files
-            this.outVoronoi = Files.createTempFile("outVoronoi"+ UUID.randomUUID(), fcvExtension).toAbsolutePath().toString();
-            this.inVoronoi = Files.createTempFile("inVoronoi"+ UUID.randomUUID(), fcpExtension).toAbsolutePath().toString();
-            this.voronoiScript = Files.createTempFile("voronoiScript"+UUID.randomUUID(), voronoiScriptExtension).toAbsolutePath().toString();
-            
+            this.outVoronoi = temporalDir + "/outVoronoi" + UUID.randomUUID() + fcvExtension;
+            this.inVoronoi = temporalDir + "/inVoronoi" + UUID.randomUUID() + fcpExtension;
+
             this.polyhedrons = new ArrayList<Polyhedron>();
             this.points = points;
-            
+
             // we need create a .fcp file with the points
             // needed for qhull library
             this.createInputPointsSetFile();
-            
+
             // execute voronoi algorithm
             this.executeQHull();
-            
+
             // read result
             this.readQhullResultsFile();
-            
+
             // perform check for non-terminated voronoi cells
             this.checkNonTerminatedCells();
         } catch (URISyntaxException ex) {
-            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
@@ -292,14 +301,6 @@ public class VoronoiTessellation3D {
             }
 
             bf.close();
-
-            // remove temporal files only when results are readed
-            File delete = new File(outVoronoi);
-            delete.delete();
-            delete = new File(inVoronoi);
-            delete.delete();
-            delete = new File(this.voronoiScript);
-            delete.delete();
         } catch (IOException io) {
             System.err.println(io.getMessage());
             return false;
@@ -392,41 +393,6 @@ public class VoronoiTessellation3D {
     }
 
     /**
-     * Create the aux script file for executing qhull on Windows system.
-     */
-    private void createWinBatFile() {
-        try {
-            BufferedWriter out = new BufferedWriter(new FileWriter(voronoiScript));
-            out.write(voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi + "\r\n");
-            out.close();
-        } catch (Exception e) {
-            // Exception if exec fails
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Create the aux script file for executing qhull on linux system.
-     */
-    private void createLinuxBatFile() {
-        try {
-            BufferedWriter out = new BufferedWriter(new FileWriter(voronoiScript));
-            out.write("#!/bin/bash \n");
-            out.write(voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi);
-            out.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Create the aux script file for executing qhull on osx system.
-     */
-    private void createMacBatFile() {
-        createLinuxBatFile();
-    }
-
-    /**
      * Check if system used is Windows.
      *
      * @return true if system used is Windows, false otherwise
@@ -439,59 +405,17 @@ public class VoronoiTessellation3D {
     }
 
     /**
-     * Check if system used is osx.
-     *
-     * @return true if system used is osx, false otherwise
-     */
-    private boolean isMac() {
-        String os = System.getProperty("os.name").toLowerCase();
-        // Mac
-        return (os.indexOf("mac") >= 0);
-
-    }
-
-    /**
-     * Check if system used is Linux.
-     *
-     * @return true if system used is Linux, false otherwise
-     */
-    private boolean isLinux() {
-        String os = System.getProperty("os.name").toLowerCase();
-        // linux or unix
-        return (os.indexOf("nix") >= 0 || os.indexOf("nux") >= 0);
-
-    }
-
-    /**
      * Execute the qhull script created.
      *
      * @return true if the script is executed without problems, false otherwise.
      */
     private boolean executeQHull() {
         try {
-            if (isWindows()) {
-                createWinBatFile();
-            } else if (isLinux()) {
-                createLinuxBatFile();
-            } else if (isMac()) {
-                createMacBatFile();
-            } else {
-                createWinBatFile();
-            }
-
-            if (isLinux() || isMac()) {
-                Runtime.getRuntime().exec("chmod +x " + this.voronoiExecutable).waitFor();
-
-                Runtime.getRuntime().exec("chmod +x " + this.voronoiScript).waitFor();
-            } 
-            
-            Runtime.getRuntime().exec(this.voronoiScript).waitFor();
-        } catch (FileNotFoundException ex) {
+            String[] command = new String[]{System.getenv("SHELL"), "-c", voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi};
+            Runtime.getRuntime().exec(command).waitFor();
+        } catch (IOException | InterruptedException ex) {
             Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
-            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (InterruptedException ex) {
-            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
+            return false;
         }
 
         return true;
