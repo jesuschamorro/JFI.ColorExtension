@@ -5,6 +5,7 @@
         <data xmlns="http://www.netbeans.org/ns/j2se-project/3">
             <name>JFI.ColorExtension</name>
             <source-roots>
+                <root id="src.FCSFiles.dir" name="Ficheros FCS"/>
                 <root id="src.dir"/>
                 <root id="src.lib.dir" name="Librerías externas"/>
             </source-roots>
