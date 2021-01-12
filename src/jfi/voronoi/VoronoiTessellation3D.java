@@ -81,17 +81,20 @@ public class VoronoiTessellation3D {
         if (points.size() < QHULL_POINTS) {
             throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is " + QHULL_POINTS);
         }       
-
+        
+        //create resource manager
+        ResourceManager manager = new ResourceManager();
+        
         String voronoiDependencyResource = "qvoronoi";
         String shell = System.getenv("SHELL");
         String shellArgument = "-c";
-        if (isWindows()) {
+        if (manager.isWindows()) {
             voronoiDependencyResource = "qvoronoi.exe";
             shell = "cmd.exe";
             shellArgument = "/c";
         }
         
-        ResourceManager manager = new ResourceManager();
+        
         // obtain resource dependency absolute path
         this.voronoiExecutable = manager.getResourceFile(voronoiDependencyResource).getAbsolutePath();
 
@@ -374,18 +377,6 @@ public class VoronoiTessellation3D {
      */
     public List<Point3D> getPoints() {
         return points;
-    }
-
-    /**
-     * Check if system used is Windows.
-     *
-     * @return true if system used is Windows, false otherwise
-     */
-    private boolean isWindows() {
-        String os = System.getProperty("os.name").toLowerCase();
-        // windows
-        return (os.indexOf("win") >= 0);
-
     }
 
     /**
