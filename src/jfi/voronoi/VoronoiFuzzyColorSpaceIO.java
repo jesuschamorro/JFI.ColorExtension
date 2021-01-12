@@ -7,11 +7,18 @@ package jfi.voronoi;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.CopyOption;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jfi.color.fuzzy.FuzzyColorSpace;
@@ -172,7 +179,7 @@ public class VoronoiFuzzyColorSpaceIO {
             System.err.println(io.getMessage());
         }
     }
-
+    
     /**
      * Read a file in .fcs format containing a set of voronoi fuzzy colors.
      *
@@ -193,10 +200,10 @@ public class VoronoiFuzzyColorSpaceIO {
         String[] spl;
         double rgb[] = new double[3];
         int numColors = 0;
-
-        BufferedReader bf = null;
+        
+        File fcsFile = new ResourceManager().getResourceFile(file);
         try {
-            bf = new BufferedReader(new FileReader(file));
+            BufferedReader bf = new BufferedReader(new FileReader(fcsFile.getAbsolutePath()));
 
             // skip comments that begin with the character '#'
             while (s != null && s.startsWith("#")) {
