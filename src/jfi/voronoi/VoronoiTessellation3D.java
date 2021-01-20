@@ -2,12 +2,9 @@ package jfi.voronoi;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.net.URISyntaxException;
-import java.nio.file.Paths;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,16 +51,11 @@ public class VoronoiTessellation3D {
     * Aux path for output file where qhull write results.
      */
     private String outVoronoi;
-    
+
     /*
     * Terminal command to execute qhull.
      */
-    private String [] command;
-
-    /**
-     * Temporal dir storing aux files for qhull execution.
-     */
-    private final String temporalDir = "tmp" + UUID.randomUUID();
+    private String[] command;
 
     /*
     * Input file extension needed by qhull.
@@ -86,63 +78,47 @@ public class VoronoiTessellation3D {
      * @param points the point set.
      */
     public VoronoiTessellation3D(List<Point3D> points) {
-        try {
-            if (points.size() < QHULL_POINTS) {
-                throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is " + QHULL_POINTS);
-            }
-
-            // adding shutdown hook for remove temporal files
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                public void run() {
-                    File file = new File(temporalDir);
-                    for (File f : file.listFiles()) {
-                        f.delete();
-                    }
-                    if (file.isDirectory()) {
-                        file.delete();
-                    }
-                }
-            });
-
-            String voronoiDependencyResource = "qvoronoi";
-            String shell = System.getenv("SHELL");
-            String shellArgument = "-c";
-            if (isWindows()) {
-                voronoiDependencyResource = "qvoronoi.exe";
-                shell = "cmd.exe";
-                shellArgument = "/c";
-            }
-
-            // obtain resource dependency absolute path
-            this.voronoiExecutable = Paths.get(Thread.currentThread().getContextClassLoader().getResource(voronoiDependencyResource).toURI()).toFile().getAbsolutePath();
-
-            // create temporalDir
-            new File(temporalDir).mkdirs();
-
-            // generate aux files as temp files
-            this.outVoronoi = temporalDir + "/outVoronoi" + UUID.randomUUID() + fcvExtension;
-            this.inVoronoi = temporalDir + "/inVoronoi" + UUID.randomUUID() + fcpExtension;
-            
-            this.command = new String[]{shell, shellArgument, voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi};
-
-            this.polyhedrons = new ArrayList<Polyhedron>();
-            this.points = points;
-
-            // we need create a .fcp file with the points
-            // needed for qhull library
-            this.createInputPointsSetFile();
-
-            // execute voronoi algorithm
-            this.executeQHull();
-
-            // read result
-            this.readQhullResultsFile();
-
-            // perform check for non-terminated voronoi cells
-            this.checkNonTerminatedCells();
-        } catch (URISyntaxException ex) {
-            Logger.getLogger(VoronoiTessellation3D.class.getName()).log(Level.SEVERE, null, ex);
+        if (points.size() < QHULL_POINTS) {
+            throw new InvalidParameterException("Points size given is " + points.size() + ". Minimum required size is " + QHULL_POINTS);
+        }       
+        
+        //create resource manager
+        ResourceManager manager = new ResourceManager();
+        
+        String voronoiDependencyResource = "qvoronoi";
+        String shell = System.getenv("SHELL");
+        String shellArgument = "-c";
+        if (manager.isWindows()) {
+            voronoiDependencyResource = "qvoronoi.exe";
+            shell = "cmd.exe";
+            shellArgument = "/c";
         }
+        
+        
+        // obtain resource dependency absolute path
+        this.voronoiExecutable = manager.getResourceFile(voronoiDependencyResource).getAbsolutePath();
+
+        // generate aux files as temp files
+        this.outVoronoi = manager.createTemporalFile("outVoronoi" + UUID.randomUUID() + fcvExtension).getAbsolutePath();
+        this.inVoronoi = manager.createTemporalFile("inVoronoi" + UUID.randomUUID() + fcpExtension).getAbsolutePath();
+                
+        this.command = new String[]{shell, shellArgument, voronoiExecutable + " Fi Fo p Fv <" + inVoronoi + " > " + outVoronoi};
+
+        this.polyhedrons = new ArrayList<Polyhedron>();
+        this.points = points;
+
+        // we need create a .fcp file with the points
+        // needed for qhull library
+        this.createInputPointsSetFile();
+
+        // execute voronoi algorithm
+        this.executeQHull();
+
+        // read result
+        this.readQhullResultsFile();
+
+        // perform check for non-terminated voronoi cells
+        this.checkNonTerminatedCells();
     }
 
     /**
@@ -401,18 +377,6 @@ public class VoronoiTessellation3D {
      */
     public List<Point3D> getPoints() {
         return points;
-    }
-
-    /**
-     * Check if system used is Windows.
-     *
-     * @return true if system used is Windows, false otherwise
-     */
-    private boolean isWindows() {
-        String os = System.getProperty("os.name").toLowerCase();
-        // windows
-        return (os.indexOf("win") >= 0);
-
     }
 
     /**
