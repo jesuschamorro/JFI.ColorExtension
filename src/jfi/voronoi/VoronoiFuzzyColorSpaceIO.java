@@ -7,11 +7,17 @@ package jfi.voronoi;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.EOFException;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -21,7 +27,9 @@ import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import jfi.color.fuzzy.FuzzyColor;
 import jfi.color.fuzzy.FuzzyColorSpace;
+import jfi.color.fuzzy.GranularFuzzyColor;
 import jfi.color.fuzzy.PolyhedralFuzzyColor;
 import jfi.geometry.PlanarPolygon;
 import jfi.geometry.Plane;
@@ -34,6 +42,60 @@ import jfi.geometry.Polyhedron;
  * @author Míriam Mengíbar Rodríguez (mirismr@correo.ugr.es)
  */
 public class VoronoiFuzzyColorSpaceIO {
+    
+    public static void serializeFCS(FuzzyColorSpace fcs, String filename) {
+        ObjectOutputStream oos = null;
+        try {
+            oos = new ObjectOutputStream(new FileOutputStream(filename));
+            for(Object fco : fcs){
+                GranularFuzzyColor gfc = (GranularFuzzyColor) fco;
+                oos.writeObject(gfc);
+            }   oos.close();
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                oos.close();
+            } catch (IOException ex) {
+                Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+    }
+    
+    public static FuzzyColorSpace readSerializedFCS(String filename) {
+        FuzzyColorSpace fcs = new FuzzyColorSpace();
+                
+        ObjectInputStream ois = null;
+        boolean stillReading = true;
+        try {
+            ois = new ObjectInputStream(new FileInputStream(filename));
+            
+            while (stillReading) {                
+                try {
+                    GranularFuzzyColor gfc = (GranularFuzzyColor) ois.readObject();
+                    fcs.add(gfc);
+                } catch (EOFException ex) {
+                    stillReading = false;
+                }
+            }
+            ois.close();
+        } catch (FileNotFoundException ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (ClassNotFoundException ex) {
+            Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                ois.close();
+            } catch (IOException ex) {
+                Logger.getLogger(VoronoiFuzzyColorSpaceIO.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        return fcs;
+    }
     
     /**
      * Export a Voronoi Fuzzy Color Space. File structure is explained below.

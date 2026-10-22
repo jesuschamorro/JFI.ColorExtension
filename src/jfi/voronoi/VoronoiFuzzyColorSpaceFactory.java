@@ -37,6 +37,13 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ArrayList<Point3D> centroids, ArrayList<String> labels, double lambda) {
+        
+        if (centroids.size() < VoronoiTessellation3D.QHULL_POINTS){
+            System.out.println("Centroids size less than "+VoronoiTessellation3D.QHULL_POINTS+". Adding no name colors...");
+            centroids = addingNoNameColors(centroids, 2);
+        }
+        
+        
         VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
         return createVoronoiFuzzyColorSpace(voronoiTessellation, labels, lambda);
     }
@@ -52,8 +59,7 @@ public class VoronoiFuzzyColorSpaceFactory {
      * @return a new fuzzy color space based on a Voronoi tesselation.
      */
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(ISCCColorMap colorMap, double lambda) {
-        VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(new ArrayList<>(colorMap.values()));
-        return createVoronoiFuzzyColorSpace(voronoiTessellation, new ArrayList<String>(colorMap.keySet()), lambda);
+        return createVoronoiFuzzyColorSpace(new ArrayList<>(colorMap.values()), new ArrayList<String>(colorMap.keySet()), lambda);
     }
 
     /**
@@ -71,7 +77,7 @@ public class VoronoiFuzzyColorSpaceFactory {
     public static FuzzyColorSpace createVoronoiFuzzyColorSpace(VoronoiTessellation3D voronoiTessellation, ArrayList<String> labels, double lambda) {
         FuzzyColorSpace<Point3D> fcs = new FuzzyColorSpace<>();
 
-        for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
+        for (int i = 0; i < labels.size(); i++) {
             Point3D centroid = voronoiTessellation.getPoints().get(i);
             Polyhedron volume = voronoiTessellation.getPolyhedrons().get(i);
             PolyhedralFuzzyColor vfc = getDefaultScaledPolyhedronFC(labels.get(i), volume, centroid, lambda);
@@ -175,10 +181,18 @@ public class VoronoiFuzzyColorSpaceFactory {
     public static GranularFuzzyColor createVoronoiGranularFuzzyColor(String label,
             List<Point3D> prototypes_p, List<Point3D> prototypes_n, Double lambda) {
 
-        List<Point3D> centroids = new ArrayList<Point3D>();
+        ArrayList<Point3D> centroids = new ArrayList<Point3D>();
         centroids.addAll(prototypes_p);
         centroids.addAll(prototypes_n);
-
+        
+        if (centroids.size() < VoronoiTessellation3D.QHULL_POINTS){
+            System.out.println(prototypes_n.size());
+            System.out.println(prototypes_p.size());
+            System.out.println("Centroids size less than "+VoronoiTessellation3D.QHULL_POINTS+". Adding no name colors...");
+            centroids = addingNoNameColors(centroids, 2);
+            System.out.println("Centroids size finally: "+centroids.size());
+        }
+        
         // create polytopes associates to positives prototypes
         FuzzyColorSpace positivesColors = createSelectedFuzzyColors(centroids, prototypes_p, lambda);
         // create a granular fuzzy color with these voronoi fuzzy colors (based on positives polytopes)
@@ -228,10 +242,39 @@ public class VoronoiFuzzyColorSpaceFactory {
                     ISCCColorMap map_negatives = isccmap_negatives.getSubset(me.getValue().getRight());
                     List<Point3D> negatives = new ArrayList<Point3D>(map_negatives.values());
 
-                    System.out.println("Creating granular color " + me.getKey());
+                    System.out.println("Creating granular color " + me.getKey() + " positives: " + me.getValue().getLeft() + " " + positives.size() + " negatives: "+ me.getValue().getRight() + " " + negatives.size());
 
                     GranularFuzzyColor granularFuzzyColor = createVoronoiGranularFuzzyColor(me.getKey(), positives, negatives, lambda);
+                    
+                    System.out.println("Created granular color " + me.getKey());
 
+                    // add granular to out
+                    fcs.add(granularFuzzyColor);
+                }
+            });
+
+        }
+
+        // wait for threads
+        es.shutdown();
+        while (!es.isTerminated()) {
+        }
+
+        return fcs;
+    }
+    
+    public static FuzzyColorSpace<Point3D> createVoronoiGranularFCS(Map<String, Pair<ArrayList<Point3D>, ArrayList<Point3D>>> colorInfo, Double lambda) {
+        FuzzyColorSpace<Point3D> fcs = new FuzzyColorSpace();
+
+        ExecutorService es = Executors.newCachedThreadPool();
+        for (Map.Entry<String, Pair<ArrayList<Point3D>, ArrayList<Point3D>>> me : colorInfo.entrySet()) {
+            es.execute(new Runnable() {
+                public void run() {
+                    String label = me.getKey();
+                    ArrayList<Point3D> positives = me.getValue().getLeft();
+                    ArrayList<Point3D> negatives = me.getValue().getRight();
+                    System.out.println("Creating granular color " + label);
+                    GranularFuzzyColor granularFuzzyColor = createVoronoiGranularFuzzyColor(label, positives, negatives, lambda);
                     // add granular to out
                     fcs.add(granularFuzzyColor);
                 }
@@ -263,7 +306,6 @@ public class VoronoiFuzzyColorSpaceFactory {
     private static FuzzyColorSpace createSelectedFuzzyColors(List<Point3D> centroids, List<Point3D> selectedPrototypes, double lambda) {
         FuzzyColorSpace<Point3D> fcs = new FuzzyColorSpace();
         VoronoiTessellation3D voronoiTessellation = new VoronoiTessellation3D(centroids);
-
         for (int i = 0; i < voronoiTessellation.getPoints().size(); i++) {
             Point3D centroid = voronoiTessellation.getPoints().get(i);
             if (selectedPrototypes.contains(centroid)) {
@@ -386,6 +428,64 @@ public class VoronoiFuzzyColorSpaceFactory {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
+    }
+    
+    private static ArrayList<Point3D> addingNoNameColors(ArrayList<Point3D> colors, int sampleRate) {
+        ArrayList<Point3D> allColors = new ArrayList<Point3D>();
+
+        if (colors != null && colors.size() > 0) {
+            allColors.addAll(colors);
+        }
+        
+        float distanceToDeleteNeighbors = distanceInSpace(sampleRate) * 2;
+//        float distanceToDeleteNeighbors = 90;
+//        System.out.println("distance: "+distanceToDeleteNeighbors);
+        ArrayList<Point3D> qPoints = deleteNeighbors(colors, generateEquidistributedPointsOUT(sampleRate), distanceToDeleteNeighbors);
+
+        for (int i = 0; i < qPoints.size(); i++) {
+            allColors.add(qPoints.get(i));
+        }
+        
+        return allColors;
+    }
+
+    private static ArrayList<Point3D> deleteNeighbors(ArrayList<Point3D> colors, ArrayList<Point3D> qPoints, float d) {
+        ArrayList<Point3D> points = new ArrayList<Point3D>();
+
+        for (int j = 0; j < qPoints.size(); j++) {
+            Point3D q = qPoints.get(j);
+            boolean all = true;
+            for (int i = 0; i < colors.size() && all; i++) {
+                Point3D c = colors.get(i);
+                if (q.distance(c) <= d) {
+                    all = false;
+                }
+            }
+            if (all) {
+                points.add(q);
+            }
+        }
+        return points;
+    }
+    
+    private static float distanceInSpace(int sampleRate) {
+        return Math.min(Math.min( (float) 255.0 / sampleRate, (float) 255.0 / sampleRate), (float) 255.0 / sampleRate);
+    }
+
+    private static ArrayList<Point3D> generateEquidistributedPointsOUT(int quantization) {
+        ArrayList<Point3D> points = new ArrayList<Point3D>();
+        int d0 = (int) (255.0 / quantization);
+        int d1 = (int) (255.0 / quantization);
+        int d2 = (int) (255.0 / quantization);
+
+        for (int i = -1; i < quantization + 1; i++) {
+            for (int j = -1; j < quantization + 1; j++) {
+                for (int k = -1; k < quantization + 1; k++) {
+                    points.add(new Point3D((i * d0), (j * d1), (k * d2)));
+                }
+            }
+        }
+        return points;
     }
 
 }

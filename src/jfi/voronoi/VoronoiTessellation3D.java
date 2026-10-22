@@ -303,6 +303,7 @@ public class VoronoiTessellation3D {
      */
     private void checkNonTerminatedCells() {
         for (int i = 0; i <= 255; i++) {
+            System.out.println(i);
             for (int j = 0; j <= 255; j++) {
                 for (int k = 0; k <= 255; k++) {
                     // for each point in space, 
@@ -337,6 +338,8 @@ public class VoronoiTessellation3D {
                                             // planar polygon without vertex
                                             faces.add(new PlanarPolygon(perpendicularPlane, new ArrayList<Point3D>(), true));
                                             v2.setFaces(faces);
+                                            
+                                            System.out.println("faces "+faces.size());
                                         }
                                     }
                                 }
